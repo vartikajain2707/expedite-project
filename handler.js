@@ -1,26 +1,31 @@
 const AWS = require('aws-sdk');
+AWS.config.update({region:'us-east-1'});
 const dynamoDB = new AWS.DynamoDB.DocumentClient();
+const TableName= process.env.PRODUCTS_TABLE
 
+// get product function
 module.exports.getProduct = async (event) => {
     const { productId } = event;
     const params = {
-        TableName: process.env.PRODUCTS_TABLE,
+        TableName,
         Key: { productId },
     };
     try {
         const result = await dynamoDB.get(params).promise();
-        return result.Item;
+        return result?.Item;
     } catch (error) {
         console.error(error);
         throw new Error('Could not fetch product');
     }
 };
 
+
+// create product function
 module.exports.createProduct = async (event) => {
     const { productId, name, description, price, category, stock } = event;
 
     const params = {
-        TableName: process.env.PRODUCTS_TABLE,
+        TableName,
         Item: {
             productId,
             name,
@@ -29,10 +34,9 @@ module.exports.createProduct = async (event) => {
             category,
             stock,
             createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
         },
     };
-
     try {
         await dynamoDB.put(params).promise();
         return params.Item;
@@ -42,10 +46,12 @@ module.exports.createProduct = async (event) => {
     }
 };
 
-
+// update product function
 module.exports.updateProduct = async (event) => {
         try {
             const { productId, updates } = event
+            const timestamp = new Date().toISOString();
+            updates.updatedAt = timestamp;
 
             if (!productId) {
                 return {
@@ -71,7 +77,7 @@ module.exports.updateProduct = async (event) => {
             });
 
             const params = {
-                TableName: process.env.PRODUCTS_TABLE,
+                TableName,
                 Key: { productId },
                 UpdateExpression: updateExpression,
                 ExpressionAttributeNames: expressionAttributeNames,
@@ -93,13 +99,13 @@ module.exports.updateProduct = async (event) => {
         }
 };
 
-
+// delete product function
 module.exports.deleteProduct = async (event) =>{
         try {
             const { productId } = event
             const params = {
-                TableName: process.env.PRODUCTS_TABLE,
-                Key: { productId },
+                TableName,
+                Key: { productId }
             };
             await dynamoDB.delete(params).promise();
             return {
