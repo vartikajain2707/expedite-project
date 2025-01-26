@@ -1,0 +1,41 @@
+type Product {
+  productId: ID!
+  name: String!
+  description: String
+  price: Float!
+  category: String!
+  stock: Int!
+  createdAt: String!
+  updatedAt: String!
+}
+
+type Query {
+  getProduct(productId: ID!): Product
+}
+
+type Mutation {
+  createProduct(
+    productId: ID!
+    name: String!
+    description: String
+    price: Float!
+    category: String!
+    stock: Int!
+  ): Product
+
+  updateProduct(productId: ID!, updates: AWSJSON): GenericResponse
+
+  deleteProduct(productId: ID!): GenericResponse
+}
+
+type GenericResponse {
+    error: Boolean
+    message: String
+}
+
+
+
+schema {
+  query: Query
+  mutation: Mutation
+}

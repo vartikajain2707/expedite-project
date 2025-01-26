@@ -1,0 +1,183 @@
+service: expedite-project
+frameworkVersion: "3"
+
+plugins:
+  - serverless-appsync-plugin
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: us-east-1
+  stage: dev
+  environment:
+    STAGE: ${self:provider.stage}
+    REGION: ${self:provider.region}
+    SERVICE_NAME: ${self:service}-${self:provider.stage}
+    PRODUCTS_TABLE: Products
+    PRODUCTS_TAXONOMY: ProductTaxonomyAttributesTable
+  iam:
+    role:
+      statements:
+        - Effect: "Allow"
+          Action:
+            - "dynamodb:PutItem"
+            - "dynamodb:UpdateItem"
+            - "dynamodb:Query"
+            - "dynamodb:GetItem"
+            - "dynamodb:BatchWriteItem"
+            - "dynamodb:Scan"
+            - "dynamodb:DeleteItem"
+          Resource: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.PRODUCTS_TABLE}
+
+custom:
+  appSync:
+    name: expedite-project-appsync
+    authenticationType: API_KEY
+    schema: schema.graphql
+    apiKeys:
+      - apiKey
+    serviceRole: { Fn::GetAtt: [ AppsyncRole, Arn ] }
+    mappingTemplatesLocation: mapping-templates
+    mappingTemplates:
+      - dataSource: getProduct
+        type: Query
+        field: getProduct
+        request: "generalTemplate-request.vtl"
+        response: "generalTemplate-response.vtl"
+      - dataSource: createProduct
+        type: Mutation
+        field: createProduct
+        request: "generalTemplate-request.vtl"
+        response: "generalTemplate-response.vtl"
+      - dataSource: updateProduct
+        type: Mutation
+        field: updateProduct
+        request: "generalTemplate-request.vtl"
+        response: "generalTemplate-response.vtl"
+      - dataSource: deleteProduct
+        type: Mutation
+        field: deleteProduct
+        request: "generalTemplate-request.vtl"
+        response: "generalTemplate-response.vtl"
+
+    dataSources:
+      - name: ProductsTable
+        type: AMAZON_DYNAMODB
+        config:
+          tableName: ${self:provider.environment.PRODUCTS_TABLE}
+          region: ${self:provider.region}
+          serviceRoleArn: { Fn::GetAtt: [ AppsyncRole, Arn ] }
+      - name: getProduct
+        type: AWS_LAMBDA
+        config:
+          functionName: getProduct
+          lambdaFunctionArn: { Fn::GetAtt: [ GetProductLambdaFunction, Arn ] }
+          serviceRoleArn: { Fn::GetAtt: [ AppsyncRole, Arn ] }
+      - name: createProduct
+        type: AWS_LAMBDA
+        config:
+          functionName: createProduct
+          lambdaFunctionArn: { Fn::GetAtt: [ CreateProductLambdaFunction, Arn ] }
+          serviceRoleArn: { Fn::GetAtt: [ AppsyncRole, Arn ] }
+      - name: updateProduct
+        type: AWS_LAMBDA
+        config:
+          functionName: updateProduct
+          lambdaFunctionArn: { Fn::GetAtt: [ UpdateProductLambdaFunction, Arn ] }
+          serviceRoleArn: { Fn::GetAtt: [ AppsyncRole, Arn ] }
+      - name: deleteProduct
+        type: AWS_LAMBDA
+        config:
+          functionName: deleteProduct
+          lambdaFunctionArn: { Fn::GetAtt: [ DeleteProductLambdaFunction, Arn ] }
+          serviceRoleArn: { Fn::GetAtt: [ AppsyncRole, Arn ] }
+
+      - name: updateProduct
+        type: AWS_LAMBDA
+        config:
+          functionName: updateProduct
+          lambdaFunctionArn: { Fn::GetAtt: [ UpdateProductLambdaFunction, Arn ] }
+          serviceRoleArn: { Fn::GetAtt: [ AppsyncRole, Arn ] }
+
+resources:
+  Resources:
+    ProductsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: productId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: productId
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+        TableName: ${self:provider.environment.PRODUCTS_TABLE}
+
+    ProductTaxonomyAttributesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.PRODUCTS_TAXONOMY}
+        AttributeDefinitions:
+          - AttributeName: taxonomyId
+            AttributeType: S
+          - AttributeName: parentId
+            AttributeType: S
+          - AttributeName: name
+            AttributeType: S
+        KeySchema:
+          - AttributeName: taxonomyId
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: parentIndex
+            KeySchema:
+              - AttributeName: parentId
+                KeyType: HASH
+              - AttributeName: name
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+        BillingMode: PAY_PER_REQUEST
+
+    AppsyncRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: "Allow"
+              Principal:
+                Service: appsync.amazonaws.com
+              Action: "sts:AssumeRole"
+        Policies:
+          - PolicyName: AppSyncLambdaInvokePolicy
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: "Allow"
+                  Action: "lambda:InvokeFunction"
+                  Resource:
+                    - arn:aws:lambda:${self:provider.region}:${aws:accountId}:function:*
+                - Effect: "Allow"
+                  Action:
+                    - "dynamodb:Query"
+                    - "dynamodb:BatchWriteItem"
+                    - "dynamodb:GetItem"
+                    - "dynamodb:BatchGetItem"
+                    - "dynamodb:DeleteItem"
+                    - "dynamodb:PutItem"
+                    - "dynamodb:Scan"
+                    - "dynamodb:UpdateItem"
+                  Resource: arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.PRODUCTS_TABLE}
+
+functions:
+  getProduct:
+    handler: handler.getProduct
+
+  createProduct:
+    handler: handler.createProduct
+
+  updateProduct:
+    handler: handler.updateProduct
+
+  deleteProduct:
+    handler: handler.deleteProduct
